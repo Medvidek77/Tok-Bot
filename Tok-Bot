@@ -1,0 +1,54 @@
+const Discord = require('discord.js');
+const client = new Discord.Client();
+const prefix = "!"; // můžete změnit prefix na svůj vlastní
+
+const TOKEN = 'insert-bot-token-here';
+const channelId = 'insert-channel-id-here';
+const scoreFile = './scores.json';
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}`);
+});
+
+client.on('message', async (message) => {
+  if (!message.content.startsWith(prefix) && message.channel.type !== 'dm') {
+    const scores = JSON.parse(fs.readFileSync(scoreFile, 'utf-8'));
+    const userId = message.author.id;
+    if (!scores[userId]) {
+      scores[userId] = 0;
+    }
+    scores[userId]++;
+    fs.writeFileSync(scoreFile, JSON.stringify(scores));
+    const messageCount = Object.values(scores).reduce((a, b) => a + b, 0);
+    if (messageCount % 20 === 0) {
+      const embed = new Discord.MessageEmbed()
+        .setTitle('Nové velikonoční vajíčko!')
+        .setDescription('Gratulujeme, právě jste napsali 20 zpráv a získali jste nové vajíčko!')
+        .setColor('#FFC0CB')
+        .setImage('https://i.imgur.com/QJLPbWA.png')
+        .setFooter('Stisknutím tlačítka "Vezmi" obdržíte 1 bod.', client.user.avatarURL());
+
+      const filter = (reaction, user) => reaction.emoji.name === '🥚' && user.id === userId;
+      const collector = message.channel.createMessageCollector(filter, { time: 10000 });
+
+      const sentEmbed = await message.channel.send(embed);
+      await sentEmbed.react('🥚');
+
+      collector.on('collect', (reaction, user) => {
+        scores[user.id]++;
+        fs.writeFileSync(scoreFile, JSON.stringify(scores));
+        sentEmbed.delete();
+        message.channel.send(`${user} získal bod za sběr vajíčka! Celkem má ${scores[user.id]} bodů.`);
+      });
+
+      collector.on('end', (collected, reason) => {
+        if (reason === 'time') {
+          sentEmbed.delete();
+          message.channel.send('Vypršel časový limit pro sběr vajíčka.');
+        }
+      });
+    }
+  }
+});
+
+client.login(TOKEN);
